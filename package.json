@@ -1,0 +1,17 @@
+{
+  "name": "pav-c2-advanced",
+  "version": "1.0.0",
+  "description": "Advanced Mobile C2 Station with File Manager & Screen Stream",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "body-parser": "^1.20.2",
+    "cors": "^2.8.5",
+    "express": "^4.19.2",
+    "ws": "^8.17.0"
+  },
+  "author": "ytpavlov",
+  "license": "MIT"
+}
