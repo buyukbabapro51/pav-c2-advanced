@@ -1,7 +1,7 @@
 {
-  "name": "pav-c2-advanced",
+  "name": "yerel-web-simulasyonu",
   "version": "1.0.0",
-  "description": "Termux Root Level C2 Station",
+  "description": "Legal Localhost WebSocket Communication System",
   "main": "server.js",
   "scripts": {
     "start": "node server.js"
@@ -12,6 +12,6 @@
     "express": "^4.19.2",
     "ws": "^8.17.0"
   },
-  "author": "ytpavlov",
+  "author": "Gelistirici",
   "license": "MIT"
 }
