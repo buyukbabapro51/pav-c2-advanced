@@ -2,109 +2,65 @@ const express = require('express');
 const ws = require('ws');
 const cors = require('cors');
 const bodyParser = require('body-parser');
-const fs = require('fs');
 const path = require('path');
 
 const app = express();
 app.use(cors());
-app.use(bodyParser.json({ limit: '50mb' }));
+app.use(bodyParser.json());
 
 const HTTP_PORT = 3000;
 const WS_PORT = 8080;
-let clients = [];
+let connectedNodes = [];
 
-// Şablon ve indirme klasörlerini otomatik oluşturma
-const templatesDir = path.join(__dirname, 'templates');
-const downloadsDir = path.join(__dirname, 'downloads');
-if (!fs.existsSync(templatesDir)) fs.mkdirSync(templatesDir);
-if (!fs.existsSync(downloadsDir)) fs.mkdirSync(downloadsDir);
-
+// WebSocket Sunucusu Yapılandırması (Real-time Veri Akışı İçin)
 const wss = new ws.Server({ port: WS_PORT }, () => {
-    console.log(`[*] Gelişmiş Soket Sunucusu Aktif | Port: ${WS_PORT}`);
+    console.log(`[*] WebSocket Sunucusu Aktif | Port: ${WS_PORT}`);
 });
 
 wss.on('connection', (socket, req) => {
-    const clientId = "NODE_" + Math.random().toString(36).substring(2, 7).toUpperCase();
-    const clientIp = req.socket.remoteAddress ? req.socket.remoteAddress.replace('::ffff:', '') : '127.0.0.1';
+    const nodeId = "NODE_" + Math.random().toString(36).substring(2, 7).toUpperCase();
+    const nodeIp = req.socket.remoteAddress ? req.socket.remoteAddress.replace('::ffff:', '') : '127.0.0.1';
     
-    const clientInfo = {
-        id: clientId,
-        ip: clientIp,
+    const nodeInfo = {
+        id: nodeId,
+        ip: nodeIp,
         status: "Çevrimiçi",
-        lastSeen: Date.now(),
-        files: [],
-        currentScreen: ""
+        lastMessage: "Bağlantı sağlandı."
     };
     
-    clients.push({ info: clientInfo, socket: socket });
+    connectedNodes.push({ info: nodeInfo, socket: socket });
+    console.log(`[+] Yeni Düğüm Bağlandı: ${nodeId} (${nodeIp})`);
 
+    // İstemciden gelen standart verileri dinleme
     socket.on('message', (message) => {
-        try {
-            const payload = JSON.parse(message);
-            const target = clients.find(c => c.socket === socket);
-            if (target) {
-                target.info.lastSeen = Date.now();
-                target.info.status = "Çevrimiçi";
-                if (payload.type === "SCREENSHOT") target.info.currentScreen = payload.data;
-                else if (payload.type === "FILE_LIST") target.info.files = payload.data;
-                else target.info.lastResponse = payload.data || message.toString();
-            }
-        } catch (e) {
-            const target = clients.find(c => c.socket === socket);
-            if (target) {
-                target.info.lastSeen = Date.now();
-                target.info.lastResponse = message.toString();
-            }
+        const target = connectedNodes.find(c => c.socket === socket);
+        if (target) {
+            target.info.lastMessage = message.toString();
+            console.log(`[Veri] ${target.info.id}: ${message.toString()}`);
         }
     });
 
+    // Bağlantı koptuğunda listeden temizleme
     socket.on('close', () => {
-        const target = clients.find(c => c.socket === socket);
-        if (target) target.info.status = "Çevrimdışı";
+        connectedNodes = connectedNodes.filter(c => c.socket !== socket);
+        console.log(`[-] Düğüm Ayrıldı: ${nodeId}`);
     });
 });
 
 // --- API ENDPOINTS ---
-app.get('/api/clients', (req, res) => res.json(clients.map(c => c.info)));
-
-app.post('/api/command', (req, res) => {
-    const { clientId, commandId, extraData } = req.body;
-    const target = clients.find(c => c.info.id === clientId);
-    if (!target || target.info.status !== "Çevrimiçi") return res.status(404).json({ error: "Cihaz aktif değil." });
-    target.socket.send(JSON.stringify({ commandId: parseInt(commandId), data: extraData || "" }));
-    res.json({ success: true, message: "Komut gönderildi." });
+app.get('/api/nodes', (req, res) => {
+    res.json(connectedNodes.map(c => c.info));
 });
 
-// Dinamik APK / EXE Üretici Endpoint'i
-app.post('/api/generate', (req, res) => {
-    const { filename, type } = req.body; // type: 'apk' veya 'exe'
-    if (!filename || !type) return res.status(400).json({ error: "Eksik parametre." });
-
-    const sourcePath = path.join(templatesDir, `stub.${type}`);
-    const outputPath = path.join(downloadsDir, `${filename}.${type}`);
-
-    // Eğer arka planda gerçek bir stub (şablon binary) yoksa, test için boş dosya oluşturur
-    if (!fs.existsSync(sourcePath)) {
-        fs.writeFileSync(sourcePath, "STUB_DATA_PLACEHOLDER");
-    }
-
-    try {
-        fs.copyFileSync(sourcePath, outputPath);
-        res.json({ success: true, downloadUrl: `http://localhost:${HTTP_PORT}/download/${filename}.${type}` });
-    } catch (err) {
-        res.status(500).json({ error: "Dosya oluşturma hatası." });
-    }
+// Statik Dosya Yönlendirmeleri (Root Seviyesi)
+app.get('/style.css', (req, res) => {
+    res.sendFile(path.join(__dirname, 'style.css'));
 });
 
-// İndirme Dağıtımı
-app.get('/download/:file', (req, res) => {
-    const file = req.params.file;
-    const filePath = path.join(downloadsDir, file);
-    if (fs.existsSync(filePath)) res.download(filePath);
-    else res.status(404).send("Dosya bulunamadı.");
+app.get('/', (req, res) => {
+    res.sendFile(path.join(__dirname, 'index.html'));
 });
 
-app.get('/style.css', (req, res) => res.sendFile(path.join(__dirname, 'style.css')));
-app.get('/', (req, res) => res.sendFile(path.join(__dirname, 'index.html')));
-
-app.listen(HTTP_PORT, () => console.log(`[+] Sunucu aktif: http://localhost:${HTTP_PORT}`));
+app.listen(HTTP_PORT, () => {
+    console.log(`[+] Yönetim Paneli Yayında: http://localhost:${HTTP_PORT}`);
+});
