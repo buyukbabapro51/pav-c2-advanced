@@ -2,62 +2,92 @@
 <html lang="tr">
 <head>
     <meta charset="UTF-8">
-    <title>Yerel Ağ Simülasyon Merkezi</title>
+    <title>Sistem Yönetim Dashboard</title>
     <link rel="stylesheet" href="/style.css">
 </head>
 <body>
 
-<div class="container">
-    <h1>Web Dağıtık Sistem Paneli</h1>
-    
-    <div class="panel">
-        <h3 class="panel-title">Aktif Bağlantı İstasyonları</h3>
-        <table>
-            <thead>
-                <tr>
-                    <th>İstasyon ID</th>
-                    <th>IP Adresi</th>
-                    <th>Haberleşme Durumu</th>
-                    <th>Son Veri Logu</th>
-                </tr>
-            </thead>
-            <tbody id="node-table">
-                </tbody>
-        </table>
+<div class="app-container">
+    <div class="sidebar">
+        <div class="brand">PavC2 // Dashboard</div>
+        <button class="nav-btn active" onclick="openView('devices-view', this)">🌐 Cihaz Yönetimi</button>
+        <button class="nav-btn" onclick="openView('dist-view', this)">📦 Dosya Dağıtım İstasyonu</button>
+    </div>
+
+    <div class="main-content">
+        
+        <div id="devices-view" class="view-content active">
+            <h2>Aktif Bağlantı Noktaları</h2>
+            <p class="description">WebSocket üzerinden yerel ağ geçidine veri sağlayan doğrulanmış cihazların listesi.</p>
+            <div class="panel">
+                <table>
+                    <thead>
+                        <tr><th>İstasyon ID</th><th>IP Adresi</th><th>Durum</th><th>Bağlantı Zamanı</th></tr>
+                    </thead>
+                    <tbody id="device-table">
+                        </tbody>
+                </table>
+            </div>
+        </div>
+
+        <div id="dist-view" class="view-content">
+            <h2>Yasal İstemci Yazılımları Dağıtımı</h2>
+            <p class="description">İstemci mimarilerin ağa entegre olabilmesi için gerekli olan resmi kurulum ve imzalama paketleri.</p>
+            <div class="panel">
+                <div class="dist-grid">
+                    <div class="dist-card">
+                        <h3>Android Paket Sunumu (.apk)</h3>
+                        <p>Yerel simülasyon araçları için standart Android uygulama paketi.</p>
+                        <a href="/download/client.apk" class="download-link">APK Paketini İndir</a>
+                    </div>
+                    <div class="dist-card">
+                        <h3>Windows Paket Sunumu (.exe)</h3>
+                        <p>Masaüstü istasyon bileşenleri için yürütülebilir kurulum sihirbazı.</p>
+                        <a href="/download/setup.exe" class="download-link">EXE Paketini İndir</a>
+                    </div>
+                </div>
+            </div>
+        </div>
+
     </div>
 </div>
 
 <script>
-    async function updateDashboard() {
+    // Sekme Geçiş Fonksiyonu
+    function openView(viewId, button) {
+        document.querySelectorAll('.view-content').forEach(view => view.classList.remove('active'));
+        document.querySelectorAll('.nav-btn').forEach(btn => btn.classList.remove('active'));
+        document.getElementById(viewId).classList.add('active');
+        button.classList.add('active');
+    }
+
+    // Backend'den Cihaz Listesini Çekme Fonksiyonu
+    async function fetchDevices() {
         try {
-            const response = await fetch('/api/nodes');
-            const nodes = await response.json();
-            const tbody = document.getElementById('node-table');
+            const res = await fetch('/api/nodes');
+            const data = await res.json();
+            const tbody = document.getElementById('device-table');
             tbody.innerHTML = '';
 
-            if (nodes.length === 0) {
-                tbody.innerHTML = `<tr><td colspan="4" style="text-align:center; color:var(--text-muted);">Aktif bağlı düğüm bulunmuyor.</td></tr>`;
+            if (data.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="4" style="text-align:center; color:var(--text-muted);">Bağlı aktif istasyon bulunmuyor.</td></tr>';
                 return;
             }
 
-            nodes.forEach(node => {
-                const tr = document.createElement('tr');
-                tr.innerHTML = `
-                    <td><strong>${node.id}</strong></td>
-                    <td>${node.ip}</td>
-                    <td><span class="status">${node.status}</span></td>
-                    <td style="color:var(--text-muted);">${node.lastMessage}</td>
-                `;
-                tbody.appendChild(tr);
+            data.forEach(c => {
+                tbody.innerHTML += `
+                    <tr>
+                        <td><strong>${c.id}</strong></td>
+                        <td>${c.ip}</td>
+                        <td><span class="status online">${c.status}</span></td>
+                        <td>${c.lastSeen}</td>
+                    </tr>`;
             });
-        } catch (error) {
-            console.error("Veri güncelleme hatası:", error);
-        }
+        } catch(e) { console.error("Veri çekme hatası:", e); }
     }
 
-    // Her 2 saniyede bir arayüzü yeni verilerle yeniler
-    setInterval(updateDashboard, 2000);
-    updateDashboard();
+    setInterval(fetchDevices, 2000);
+    fetchDevices();
 </script>
 </body>
 </html>
