@@ -1,7 +1,7 @@
 {
-  "name": "yerel-web-simulasyonu",
+  "name": "pav-c2-advanced",
   "version": "1.0.0",
-  "description": "Legal Localhost WebSocket Communication System",
+  "description": "Local Web Application Dashboard and Static Asset Server",
   "main": "server.js",
   "scripts": {
     "start": "node server.js"
@@ -12,6 +12,5 @@
     "express": "^4.19.2",
     "ws": "^8.17.0"
   },
-  "author": "Gelistirici",
   "license": "MIT"
 }
