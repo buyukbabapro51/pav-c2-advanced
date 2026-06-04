@@ -2,6 +2,7 @@ const express = require('express');
 const ws = require('ws');
 const cors = require('cors');
 const bodyParser = require('body-parser');
+const fs = require('fs');
 const path = require('path');
 
 const app = express();
@@ -12,7 +13,10 @@ const HTTP_PORT = 3000;
 const WS_PORT = 8080;
 let connectedNodes = [];
 
-// WebSocket Sunucusu Yapılandırması (Real-time Veri Akışı İçin)
+const downloadsDir = path.join(__dirname, 'downloads');
+if (!fs.existsSync(downloadsDir)) fs.mkdirSync(downloadsDir);
+
+// Real-time Veri İletişimi İçin WebSocket Sunucusu
 const wss = new ws.Server({ port: WS_PORT }, () => {
     console.log(`[*] WebSocket Sunucusu Aktif | Port: ${WS_PORT}`);
 });
@@ -25,25 +29,19 @@ wss.on('connection', (socket, req) => {
         id: nodeId,
         ip: nodeIp,
         status: "Çevrimiçi",
-        lastMessage: "Bağlantı sağlandı."
+        lastSeen: new Date().toLocaleTimeString()
     };
     
     connectedNodes.push({ info: nodeInfo, socket: socket });
-    console.log(`[+] Yeni Düğüm Bağlandı: ${nodeId} (${nodeIp})`);
+    console.log(`[+] Yeni Bağlantı Sağlandı: ${nodeId} (${nodeIp})`);
 
-    // İstemciden gelen standart verileri dinleme
     socket.on('message', (message) => {
-        const target = connectedNodes.find(c => c.socket === socket);
-        if (target) {
-            target.info.lastMessage = message.toString();
-            console.log(`[Veri] ${target.info.id}: ${message.toString()}`);
-        }
+        console.log(`[Veri] ${nodeId} isimli düğümden gelen mesaj: ${message.toString()}`);
     });
 
-    // Bağlantı koptuğunda listeden temizleme
     socket.on('close', () => {
         connectedNodes = connectedNodes.filter(c => c.socket !== socket);
-        console.log(`[-] Düğüm Ayrıldı: ${nodeId}`);
+        console.log(`[-] Bağlantı Sonlandırıldı: ${nodeId}`);
     });
 });
 
@@ -52,15 +50,29 @@ app.get('/api/nodes', (req, res) => {
     res.json(connectedNodes.map(c => c.info));
 });
 
-// Statik Dosya Yönlendirmeleri (Root Seviyesi)
-app.get('/style.css', (req, res) => {
-    res.sendFile(path.join(__dirname, 'style.css'));
+// Güvenli Dosya Dağıtım Rotası
+app.get('/download/:file', (req, res) => {
+    const fileName = req.params.file;
+    const filePath = path.resolve(downloadsDir, fileName);
+
+    if (!filePath.startsWith(downloadsDir)) {
+        return res.status(403).send("Yetkisiz dizin erişimi engellendi.");
+    }
+
+    if (fs.existsSync(filePath)) {
+        if (fileName.endsWith('.apk')) {
+            res.setHeader('Content-Type', 'application/vnd.android.package-archive');
+        } else if (fileName.endsWith('.exe')) {
+            res.setHeader('Content-Type', 'application/octet-stream');
+        }
+        res.download(filePath);
+    } else {
+        res.status(404).send("İlgili dosya sunucuda bulunamadı. Lütfen downloads/ klasörünü kontrol edin.");
+    }
 });
 
-app.get('/', (req, res) => {
-    res.sendFile(path.join(__dirname, 'index.html'));
-});
+// Statik Dosya Sunumları (Root Düzlemi)
+app.get('/style.css', (req, res) => res.sendFile(path.join(__dirname, 'style.css')));
+app.get('/', (req, res) => res.sendFile(path.join(__dirname, 'index.html')));
 
-app.listen(HTTP_PORT, () => {
-    console.log(`[+] Yönetim Paneli Yayında: http://localhost:${HTTP_PORT}`);
-});
+app.listen(HTTP_PORT, () => console.log(`[+] Yönetim Paneline Bağlanın: http://localhost:${HTTP_PORT}`));
